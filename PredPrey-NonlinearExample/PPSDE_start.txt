@@ -1,0 +1,18 @@
+functions {
+real[] P_mat_to_array(matrix Pmat){
+	real Pvec[3];
+	Pvec[1] = Pmat[1,1];
+	Pvec[2] = Pmat[1,2];
+	Pvec[3] = Pmat[2,2];
+	return Pvec;
+}
+
+
+matrix P_array_to_mat(real[] Pvec){
+	matrix[2,2] Pmat;
+	Pmat[1,1] = Pvec[1];
+	Pmat[1,2] = Pvec[2];
+	Pmat[2,1] = Pvec[2];
+	Pmat[2,2] = Pvec[3];
+	return Pmat;
+}
