@@ -67,11 +67,12 @@ params_text<-"
   aconsumed=params[2];
   bgrowth=params[3];
   bdeath=params[4];
-  Pvec[1]=params[5];
-  Pvec[2]=params[6];
-  Pvec[3]=params[7];
 
-  sigmaP = P_array_to_mat(Pvec);
+  sigmaP[1,1] = params[5];
+  sigmaP[2,1] = params[6];
+  sigmaP[1,2] = 0;
+  sigmaP[2,2] = params[7];
+
   a = yp[1];
   b = yp[2];
 "
@@ -165,7 +166,6 @@ save(combinechains,file=paste0("PPSDE_n1_Trial",trial,".RData"))
 # Examine the result
 get_elapsed_time(combinechains)
 round(summary(combinechains)[[1]],3)
-monitor(combinechains)
 shinystan::launch_shinystan(combinechains)
 
 # Compare to true data generating values
