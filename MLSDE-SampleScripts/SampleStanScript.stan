@@ -57,20 +57,27 @@ int[] x_int) { // integer covariates, if any
   return dFdt;
 }
 
-real CDEKF(real[,] y, //individual time-series y_i
-                   matrix Lambda, // measurement loading matrix
-                   matrix sigma_y, // measurement error variance matrix
-                   real[] y0, // initial values for the system
-                   real t0, // initial time index
-                   real[] params, // other parameters in the model
-                   real[,] ts, // array of observed time indices 
-                   real[] x, // real number covariates, if any
-                   int[] x_int, // integer covariates, if any
-                   int T, // an interger for total number of observations
-     		       real rel_tol, real abs_tol, real max_step // numerical solver arguments
-                    ){
-    real y_pred[T,1,5];
-    real y_up[T,5];
+real CDEKF(
+            // 1. observed data
+            real[,] y, //observed individual time series y_i
+            real[,] ts, // array of observed time indices 
+            real[] x, // real number covariates, if any
+            int[] x_int, // integer covariates, if any
+            int T, // an interger for total number of observations
+            
+            // 2. parameters
+            matrix Lambda, // measurement loading matrix
+            matrix sigma_y, // measurement error variance matrix
+            real[] params, // other parameters in the model
+            
+            // 3. initial condition
+            real[] y0, // initial values for the system
+            real t0, // initial time index
+            
+            // (optional) numerical solver arguments
+            real rel_tol, real abs_tol, real max_step){
+    real eta_pred[T,1,5];
+    real eta_up[T,5];
     matrix[2,1] v[T];
     matrix[2,2] V[T];
     real ll=0;
@@ -85,33 +92,33 @@ real CDEKF(real[,] y, //individual time-series y_i
 // first time point prediction step
 // This function requires that the first time index is of type real and the second of type real[] (as it is intended for solving an entire sequence).
 // It takes in starting point y_up[t-1,] as real[], returns real[ , ] (again, intended for the entire sequence of y's)
-    y_pred[1,,] = integrate_ode_rk45(DyadicInteraction, y0, t0, ts[1,], params, x, x_int,rel_tol,abs_tol,max_step); 
+    eta_pred[1,,] = integrate_ode_rk45(DyadicInteraction, y0, t0, ts[1,], params, x, x_int,rel_tol,abs_tol,max_step); 
 
 // prediction error
-    v[1] = to_matrix(y[1,],2,1)-to_matrix(y_pred[1,,1:2])'; 
-    V[1] = Lambda*P_array_to_mat(y_pred[1,1,3:5])*Lambda'+sigma_y;
+    v[1] = to_matrix(y[1,],2,1)-to_matrix(eta_pred[1,,1:2])'; 
+    V[1] = Lambda*P_array_to_mat(eta_pred[1,1,3:5])*Lambda'+sigma_y;
 
-    K = P_array_to_mat(y_pred[1,1,3:5])*Lambda'*inverse(V[1]);
+    K = P_array_to_mat(eta_pred[1,1,3:5])*Lambda'*inverse(V[1]);
 
 // first time point update step
-    y_up[1,1:2] = to_array_1d((to_matrix(y_pred[1,,1:2])'+K*v[1])');
-    y_up[1,3:5] = P_mat_to_array(P_array_to_mat(y_pred[1,1,3:5])-K*Lambda*P_array_to_mat(y_pred[1,1,3:5]));
+    eta_up[1,1:2] = to_array_1d((to_matrix(eta_pred[1,,1:2])'+K*v[1])');
+    eta_up[1,3:5] = P_mat_to_array(P_array_to_mat(eta_pred[1,1,3:5])-K*Lambda*P_array_to_mat(eta_pred[1,1,3:5]));
 // loglikelihood for the first time point
     ll+= -(log(determinant(V[1]))+v[1]'*inverse(V[1])*v[1])[1,1];
 
     for(t in 2:T){
     // time point t prediction step
-        y_pred[t,,] = integrate_ode_rk45(DyadicInteraction, y_up[t-1,], ts[t-1,1], ts[t,], params, x, x_int,rel_tol,abs_tol, max_step);
+        eta_pred[t,,] = integrate_ode_rk45(DyadicInteraction, eta_up[t-1,], ts[t-1,1], ts[t,], params, x, x_int,rel_tol,abs_tol, max_step);
     
     // prediction error at time point t
-        v[t] = to_matrix(y[t,],2,1)-to_matrix(y_pred[t,,1:2])'; 
-        V[t] = Lambda*P_array_to_mat(y_pred[t,1,3:5])*Lambda'+sigma_y;
+        v[t] = to_matrix(y[t,],2,1)-to_matrix(eta_pred[t,,1:2])'; 
+        V[t] = Lambda*P_array_to_mat(eta_pred[t,1,3:5])*Lambda'+sigma_y;
     
-        K = P_array_to_mat(y_pred[t,1,3:5])*Lambda'*inverse(V[t]);
+        K = P_array_to_mat(eta_pred[t,1,3:5])*Lambda'*inverse(V[t]);
     
     // time point t update step
-        y_up[t,1:2] = to_array_1d((to_matrix(y_pred[t,,1:2])'+K*v[t])');
-        y_up[t,3:5] = P_mat_to_array(P_array_to_mat(y_pred[t,1,3:5])- K*Lambda*P_array_to_mat(y_pred[t,1,3:5]));
+        eta_up[t,1:2] = to_array_1d((to_matrix(eta_pred[t,,1:2])'+K*v[t])');
+        eta_up[t,3:5] = P_mat_to_array(P_array_to_mat(eta_pred[t,1,3:5])- K*Lambda*P_array_to_mat(eta_pred[t,1,3:5]));
     
     // adds to the loglikelihood object
         ll+= -(log(determinant(V[t]))+v[t]'*inverse(V[t])*v[t])[1,1];
@@ -219,10 +226,19 @@ for(n in 1:N){
 
     Tn=T[n];
 
-  y0[1:2,n]=ystart[,n];
-  y0[3:5,n]=pstart;
+   y0[1:2,n]=ystart[,n];
+   y0[3:5,n]=pstart;
 
-  lln=CDEKF(y[1:Tn,,n], Lambda,sigma_y, y0[,n], t0, ts[1:Tn,n,], params, x, x_int, Tn, rel_tol, abs_tol, max_step);
+   lln=CDEKF(
+               // 1. observed data
+               y[1:Tn,,n],ts[1:Tn,n,],
+               x, x_int, Tn,
+               // 2. parameters
+               Lambda, sigma_y,params,
+               // 3. initial condition
+               y0[,n], t0,
+               // (optional) numerical solver arguments
+               rel_tol, abs_tol, max_step);
   target+=lln;
   }
 }
